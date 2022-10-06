@@ -2,6 +2,15 @@ local async = require("neotest.async")
 local lib = require("neotest.lib")
 local FanoutAccum = require("neotest.types").FanoutAccum
 
+local log_buf = nil
+vim.cmd [[  
+     sb neotest-log-buf
+     setfiletype log
+     exe "normal \<c-w>H"
+  ]]
+log_buf = vim.api.nvim_get_current_buf()
+vim.bo[log_buf].buftype = 'nofile'
+
 ---@class integratedStrategyConfig
 ---@field height integer
 ---@field width integer
