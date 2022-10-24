@@ -2,18 +2,31 @@ local async = require("neotest.async")
 local lib = require("neotest.lib")
 local FanoutAccum = require("neotest.types").FanoutAccum
 
+local M = {}
 local log_buf = nil
-vim.cmd [[  
-     sb neotest-log-buf
-     setfiletype log
-     exe "normal \<c-w>H"
-  ]]
-log_buf = vim.api.nvim_get_current_buf()
-vim.bo[log_buf].buftype = 'nofile'
+local buffer = vim.split(vim.fn.execute ':filter neotest-log-buf buffers', "\n")[2]
+if buffer then
+  local match = tonumber(string.match(buffer, "%s*(%d+)"))
+  log_buf = match
+  local info = vim.fn.getbufinfo(match)[1];
+  if info.hidden or not info.loaded then
+    vim.cmd [[
+       vnew neotest-log-buf
+       exe "normal \<c-w>H"
+     ]]
+  end
+  vim.api.nvim_buf_set_lines(log_buf, 0, -1, false, {})
 
----@class integratedStrategyConfig
----@field height integer
----@field width integer
+else
+  vim.cmd [[
+       vnew neotest-log-buf
+       exe "normal \<c-w>H"
+     ]]
+  log_buf = vim.api.nvim_get_current_buf()
+end
+
+vim.bo[log_buf].buftype = 'nofile'
+vim.bo[log_buf].filetype = 'log'
 
 ---@async
 ---@param spec neotest.RunSpec
@@ -24,6 +37,7 @@ return function(spec)
   local finish_cond = async.control.Condvar.new()
   local result_code = nil
   local command = spec.command
+  vim.api.nvim_buf_set_lines(log_buf, -1, -1, true, { 'spec command', command })
   local data_accum = FanoutAccum(function(prev, new)
     if not prev then
       return new
@@ -48,6 +62,13 @@ return function(spec)
     height = spec.strategy.height,
     width = spec.strategy.width,
     on_stdout = function(_, data)
+      local ok, parsed = pcall(vim.json.decode, data, { luanil = { object = true } })
+      if ok then
+        vim.api.nvim_buf_set_lines(log_buf, -1, -1, true, parsed)
+      else
+        vim.api.nvim_buf_set_lines(log_buf, -1, -1, true, data)
+      end
+
       async.run(function()
         data_accum:push(table.concat(data, "\n"))
       end)
