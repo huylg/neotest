@@ -323,9 +323,11 @@ window will be used
 {short} `(boolean)` Show shortened output
 {enter} `(boolean)` Enter output window
 {quiet} `(boolean)` Suppress warnings of no output
+{last_run} `(boolean)` Open output for last test run
 {position_id} `(string)` Open output for position with this ID, opens nearest
 position if not given
 {adapter} `(string)` Adapter ID, defaults to first found with matching position
+{auto_close} `(boolean)` Close output window when leaving it, or when cursor moves outside of window
 
 
 ==============================================================================
@@ -422,6 +424,12 @@ chosen position is used.
 neotest.run.adapters()                                  *neotest.run.adapters()*
                             `neotest.run.adapters`()
 Get the list of all known adapter IDs.
+
+neotest.run.get_last_run()                          *neotest.run.get_last_run()*
+                          `neotest.run.get_last_run`()
+Get last test run tree and adapter id.
+Return~
+`(string)` | nil, table | nil Position id and last args table
 
 
 ==============================================================================

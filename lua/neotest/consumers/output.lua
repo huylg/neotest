@@ -65,40 +65,34 @@ local function open_output(result, opts)
     pcall(vim.fn.chanclose, chan)
     win = nil
   end
-  if opts.open_win then
-    local cur_win = vim.api.nvim_get_current_win()
-    win = opts.open_win({ width = width, height = height })
-    if not win then
-      win = vim.api.nvim_get_current_win()
+
+  opts.open_win = opts.open_win
+    or function(win_opts)
+      return lib.ui.float.open({
+        width = win_opts.width,
+        height = win_opts.height,
+        buffer = buf,
+        auto_close = opts.auto_close,
+      }).win_id
     end
-    vim.api.nvim_create_autocmd("WinClosed", {
-      pattern = tostring(win),
-      callback = on_close,
-    })
-    vim.api.nvim_win_set_buf(win, buf)
-    if opts.enter then
-      vim.api.nvim_set_current_win(win)
-    else
-      vim.api.nvim_set_current_win(cur_win)
-    end
+
+  local cur_win = vim.api.nvim_get_current_win()
+
+  win = opts.open_win({ width = width, height = height }) or vim.api.nvim_get_current_win()
+
+  vim.api.nvim_create_autocmd("WinClosed", {
+    pattern = tostring(win),
+    callback = on_close,
+  })
+  vim.api.nvim_win_set_buf(win, buf)
+
+  if opts.enter then
+    vim.api.nvim_set_current_win(win)
   else
-    local float = lib.ui.float.open({
-      width = width,
-      height = height,
-      buffer = buf,
-      enter = opts.enter,
-    })
-    float:listen("close", on_close)
-    win = float.win_id
+    vim.api.nvim_set_current_win(cur_win)
   end
 
-  async.api.nvim_buf_set_keymap(buf, "n", "q", "", {
-    noremap = true,
-    silent = true,
-    callback = function()
-      pcall(vim.api.nvim_win_close, win, true)
-    end,
-  })
+  vim.api.nvim_buf_set_option(buf, "filetype", "neotest-output")
 end
 
 local neotest = {}
@@ -154,9 +148,11 @@ end
 ---@field short boolean Show shortened output
 ---@field enter boolean Enter output window
 ---@field quiet boolean Suppress warnings of no output
+---@field last_run boolean Open output for last test run
 ---@field position_id string Open output for position with this ID, opens nearest
 --- position if not given
 ---@field adapter string Adapter ID, defaults to first found with matching position
+---@field auto_close boolean Close output window when leaving it, or when cursor moves outside of window
 function neotest.output.open(opts)
   opts = opts or {}
   if win then
@@ -171,7 +167,16 @@ function neotest.output.open(opts)
   end
   async.run(function()
     local tree, adapter_id
-    if not opts.position_id then
+    if opts.last_run then
+      local position_id, last_args = require("neotest").run.get_last_run()
+      if position_id and last_args then
+        tree, adapter_id = client:get_position(position_id, last_args)
+      end
+      if not tree then
+        lib.notify("Last test run no longer exists")
+        return
+      end
+    elseif not opts.position_id then
       local file_path = vim.fn.expand("%:p")
       local row = vim.fn.getbufinfo(file_path)[1].lnum - 1
       tree, adapter_id = client:get_nearest(file_path, row, opts)
