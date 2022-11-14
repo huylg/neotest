@@ -358,6 +358,17 @@ function NeotestClient:_start(args)
     async.run(function()
       local adapter_id = self:_get_adapter(file_path)
       if not adapter_id then
+        for a_id, _ in pairs(self._adapters) do
+          local root = assert(self:get_position(nil, { adapter = a_id }))
+          if vim.startswith(file_path, root:data().path) then
+            logger.info(
+              "Not updating positions for",
+              file_path,
+              "as it's in a known directory and no adapter matched"
+            )
+            return
+          end
+        end
         local adapter = self._adapter_group:adapter_matching_path(file_path)
         if not adapter then
           return
@@ -433,7 +444,8 @@ end
 function NeotestClient:_update_open_buf_positions(adapter_id)
   local adapter = self._adapters[adapter_id]
   for _, bufnr in ipairs(async.api.nvim_list_bufs()) do
-    local file_path = async.api.nvim_buf_get_name(bufnr)
+    local name = async.api.nvim_buf_get_name(bufnr)
+    local file_path = lib.files.path.real(name) or name
     if adapter.is_test_file(file_path) then
       self:_update_positions(file_path, { adapter = adapter_id })
     end
